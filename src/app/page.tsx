@@ -3,17 +3,17 @@
 import { useState } from 'react';
 import { PromptForm } from '@/components/PromptForm';
 import { ResultDashboard } from '@/components/ResultDashboard';
-import { AnalysisRequest, AnalysisResponse, ApiState } from '@/types';
+import { AnalysisRequest, AnalysisResponse } from '@/types';
+import { AlertTriangle } from 'lucide-react';
 
-export default function HomePage() {
-  const [state, setState] = useState<ApiState<AnalysisResponse>>({
-    data: null,
-    isLoading: false,
-    error: null,
-  });
+export default function Home() {
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async (payload: AnalysisRequest) => {
-    setState({ data: null, isLoading: true, error: null });
+    setIsLoading(true);
+    setError(null);
 
     try {
       const response = await fetch('/api/analyze', {
@@ -22,57 +22,52 @@ export default function HomePage() {
         body: JSON.stringify(payload),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process request');
+        // Captura el mensaje limpio formateado desde el backend (status 429 o 500)
+        throw new Error(data.error || 'Ocurrió un error inesperado al procesar la solicitud.');
       }
 
-      const result: AnalysisResponse = await response.json();
-      setState({ data: result, isLoading: false, error: null });
+      setResult(data);
     } catch (err: any) {
-      setState({
-        data: null,
-        isLoading: false,
-        error: err.message || 'An unexpected error occurred',
-      });
+      setError(err.message || 'Error de conexión con el servidor.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 px-4 py-12 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12">
       <div className="max-w-4xl mx-auto space-y-8">
-        <header className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-widest">
-            Senior Engineering Portfolio Project
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
             AI Architecture Studio
           </h1>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm sm:text-base">
+          <p className="text-slate-400 text-sm md:text-base">
             Server-Driven UI Dashboard leveraging Next.js App Router, Gemini AI structured JSON output, and Tailwind CSS.
           </p>
-        </header>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
-          <PromptForm onSubmit={handleAnalyze} isLoading={state.isLoading} />
         </div>
 
-        {state.error && (
-          <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
-            <strong>Error:</strong> {state.error}
-          </div>
-        )}
+        {/* Form Box */}
+        <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm">
+          <PromptForm onSubmit={handleAnalyze} isLoading={isLoading} />
 
-        {state.isLoading && (
-          <div className="p-8 text-center space-y-4">
-            <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-sm text-slate-400 font-mono animate-pulse">
-              Requesting structured JSON from Gemini 1.5 Flash...
-            </p>
-          </div>
-        )}
+          {/* Banner Elegante de Error (Cuota o Servidor) */}
+          {error && (
+            <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm flex items-start gap-3 transition-all animate-in fade-in">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-medium text-amber-300">Aviso del Sistema</p>
+                <p className="text-amber-200/90 leading-relaxed">{error}</p>
+              </div>
+            </div>
+          )}
+        </div>
 
-        {state.data && <ResultDashboard data={state.data} />}
+        {/* Dashboard con Resultados */}
+        {result && <ResultDashboard data={result} />}
       </div>
     </main>
   );

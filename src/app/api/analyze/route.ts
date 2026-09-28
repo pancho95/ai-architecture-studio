@@ -8,11 +8,11 @@ export async function POST(request: Request) {
 
     const topic = body.topic || body.concept;
     const category = body.category;
-    const complexity = body.complexity || 'Intermediate';
+    const complexity = body.complexity || 'intermediate';
 
     if (!topic || !category) {
       return NextResponse.json(
-        { error: 'Missing required parameters: topic/concept and category' },
+        { error: 'Parámetros requeridos faltantes: concepto y categoría.' },
         { status: 400 }
       );
     }
@@ -36,8 +36,8 @@ Return ONLY a valid JSON object matching this TypeScript interface:
   "recommendedStack": ["Next.js", "TypeScript", "Tailwind CSS"]
 }`;
 
-    // Lista de modelos activos soportados en la versión actual de la API
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-pro-preview'];
+    // Intentar primero con modelos de respuesta rápida
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
     let response = null;
     let lastError = null;
 
@@ -52,33 +52,37 @@ Return ONLY a valid JSON object matching this TypeScript interface:
         });
         if (response) break;
       } catch (err: any) {
-        console.warn(`Model ${model} failed, trying next... Error: ${err?.message || err}`);
+        console.warn(`Falló el modelo ${model}:`, err?.message || err);
         lastError = err;
       }
     }
 
     if (!response) {
-      throw lastError || new Error('All model attempts failed');
+      throw lastError || new Error('No se pudo conectar con ningún modelo.');
     }
 
     const rawText = response.text;
-
     if (!rawText) {
-      throw new Error('Received empty response from Gemini API');
+      throw new Error('Respuesta vacía recibida desde la API.');
     }
 
     const parsedData: AnalysisResponse = JSON.parse(rawText);
     return NextResponse.json(parsedData, { status: 200 });
 
   } catch (error: any) {
-    console.error('=== SERVER DETAILED ERROR ===', error);
-    
+    console.error('=== SERVER ERROR ===', error);
+
+    const errorStr = String(error?.message || error);
+    const isQuotaError = error?.status === 429 || errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED');
+
+    // Mensaje limpio en español para el usuario
+    const friendlyMessage = isQuotaError
+      ? 'Se ha alcanzado el límite de cuota gratuita por minuto. Aguarda unos 30 segundos y vuelve a intentarlo.'
+      : 'No fue posible generar el análisis arquitectónico en este momento. Inténtalo más tarde.';
+
     return NextResponse.json(
-      { 
-        error: error.message || 'Internal Server Error',
-        details: String(error)
-      },
-      { status: 500 }
+      { error: friendlyMessage },
+      { status: isQuotaError ? 429 : 500 }
     );
   }
 }
